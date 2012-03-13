@@ -1,0 +1,12 @@
+Changed 'bin' to 'sbin' for destination directory.
+--- a/SConstruct
++++ b/SConstruct
+@@ -15,6 +15,8 @@
+ 
+ env = Environment(ENV = os.environ.copy(), ARGUMENTS = ARGUMENTS)
+ 
++env.bindir = 'sbin'
++
+ if sys.platform.startswith('win32'):
+     libraries.append('freelan_static')
+     libraries.append('asiotap_static')
