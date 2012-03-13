@@ -1,1 +1,4 @@
+remove-boost-thread.patch
 add-makefile.patch
+remove-boost-datetime.patch
+remove-ssl.patch
