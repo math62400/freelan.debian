@@ -4,7 +4,7 @@
 #
 # Values should be separated by spaces.
 # Each entry must match a file at /etc/freelan/<entry>.conf
-CONFIG_FILES="freelan"
+CONFIGURATIONS="freelan"
 
 # Additional options that are passed to the Daemon.
 DAEMON_OPTS=""
