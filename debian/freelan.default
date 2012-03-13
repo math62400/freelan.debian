@@ -1,10 +1,10 @@
-# Defaults for freelan initscript
-# sourced by /etc/init.d/freelan
-# installed at /etc/default/freelan by the maintainer scripts
+# This is the configuration file for /etc/init.d/freelan
 
+# Configuration files to load.
 #
-# This is a POSIX shell fragment
-#
+# Values should be separated by spaces.
+# Each entry must match a file at /etc/freelan/<entry>.conf
+CONFIG_FILES="freelan"
 
 # Additional options that are passed to the Daemon.
 DAEMON_OPTS=""
