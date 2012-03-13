@@ -1,0 +1,9 @@
+Adds a Makefile for compiling using make.
+--- /dev/null
++++ b/Makefile
+@@ -0,0 +1,5 @@
++build:
++	scons
++
++install:
++	scons install prefix=${DESTDIR}/usr
