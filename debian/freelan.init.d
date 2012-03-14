@@ -15,7 +15,7 @@
 
 # Author: Julien Kauffmann <julien.kauffmann@freelan.org>
 
-PATH=/sbin:/usr/sbin
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
 DESC="peer-to-peer virtual private network daemon"
 NAME="freelan"
 DAEMON=/usr/sbin/freelan
@@ -28,13 +28,13 @@ CONFIG_DIR=/etc/$NAME
 [ -x $DAEMON ] || exit 0
 
 # Defaults
-CONFIGURATIONS="freelan"
+CONFIGURATIONS=""
 
 # Read configuration variable file if it is present
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
 
 # Load the VERBOSE setting and other rcS variables
-#. /lib/init/vars.sh
+. /lib/init/vars.sh
 
 # Define LSB log_* functions.
 # Depend on lsb-base (>= 3.0-6) to ensure that this file is present.
@@ -85,16 +85,17 @@ do_stop_instance()
 do_start()
 {
 	for CONFIG in $CONFIGURATIONS; do
+		log_daemon_msg " $CONFIG"
+
 		CONFIG_FILE="$CONFIG_DIR/$CONFIG.conf"
 		if test -e "$CONFIG_FILE"; then
-			log_daemon_msg "Starting $CONFIG..."
 			do_start_instance
 
 			RETVAL="$?"
 			[ "$RETVAL" = 2 ] && return 2
-			[ "$RETVAL" = 1 ] && log_warning_msg "$CONFIG is already running."
+			[ "$RETVAL" = 1 ] && log_warning_msg " (already running)"
 		else
-			log_failure_msg "No such file: $CONFIG_FILE"
+			log_failure_msg " ($CONFIG_FILE not found)"
 			return 2
 		fi
 	done
@@ -106,16 +107,17 @@ do_start()
 do_stop()
 {
 	for CONFIG in $CONFIGURATIONS; do
+		log_daemon_msg " $CONFIG"
+
 		CONFIG_FILE="$CONFIG_DIR/$CONFIG.conf"
 		if test -e "$CONFIG_FILE"; then
-			log_daemon_msg "Stopping $CONFIG..."
 			do_stop_instance
 
 			RETVAL="$?"
 			[ "$RETVAL" = 2 ] && return 2
-			[ "$RETVAL" = 1 ] && log_warning_msg "$CONFIG is already stopped."
+			[ "$RETVAL" = 1 ] && log_warning_msg " (already running)"
 		else
-			log_failure_msg "No such file: $CONFIG_FILE"
+			log_failure_msg " ($CONFIG_FILE not found)"
 			return 2
 		fi
 	done
@@ -164,7 +166,6 @@ case "$1" in
 	esac
 	;;
   *)
-	#echo "Usage: $SCRIPTNAME {start|stop|restart|reload|force-reload}" >&2
 	echo "Usage: $SCRIPTNAME {start|stop|status|restart|force-reload}" >&2
 	exit 3
 	;;
