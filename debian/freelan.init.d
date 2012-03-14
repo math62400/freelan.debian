@@ -84,21 +84,26 @@ do_stop_instance()
 #
 do_start()
 {
-	for CONFIG in $CONFIGURATIONS; do
-		log_daemon_msg " $CONFIG"
+	if [ "$CONFIGURATIONS" = "" ]; then
+		log_warning_msg "No configuration specified. Did you edit /etc/default/$NAME ?"
+		return 0
+	else
+		for CONFIG in $CONFIGURATIONS; do
+			log_daemon_msg " $CONFIG"
 
-		CONFIG_FILE="$CONFIG_DIR/$CONFIG.conf"
-		if test -e "$CONFIG_FILE"; then
-			do_start_instance
+			CONFIG_FILE="$CONFIG_DIR/$CONFIG.conf"
+			if test -e "$CONFIG_FILE"; then
+				do_start_instance
 
-			RETVAL="$?"
-			[ "$RETVAL" = 2 ] && return 2
-			[ "$RETVAL" = 1 ] && log_warning_msg " (already running)"
-		else
-			log_failure_msg " ($CONFIG_FILE not found)"
-			return 2
-		fi
-	done
+				RETVAL="$?"
+				[ "$RETVAL" = 2 ] && return 2
+				[ "$RETVAL" = 1 ] && log_warning_msg " (already running)"
+			else
+				log_failure_msg " ($CONFIG_FILE not found)"
+				return 2
+			fi
+		done
+	fi
 }
 
 #
@@ -106,21 +111,26 @@ do_start()
 #
 do_stop()
 {
-	for CONFIG in $CONFIGURATIONS; do
-		log_daemon_msg " $CONFIG"
+	if [ "$CONFIGURATIONS" = "" ]; then
+		log_warning_msg "No configuration specified. Did you edit /etc/default/$NAME ?"
+		return 0
+	else
+		for CONFIG in $CONFIGURATIONS; do
+			log_daemon_msg " $CONFIG"
 
-		CONFIG_FILE="$CONFIG_DIR/$CONFIG.conf"
-		if test -e "$CONFIG_FILE"; then
-			do_stop_instance
+			CONFIG_FILE="$CONFIG_DIR/$CONFIG.conf"
+			if test -e "$CONFIG_FILE"; then
+				do_stop_instance
 
-			RETVAL="$?"
-			[ "$RETVAL" = 2 ] && return 2
-			[ "$RETVAL" = 1 ] && log_warning_msg " (already running)"
-		else
-			log_failure_msg " ($CONFIG_FILE not found)"
-			return 2
-		fi
-	done
+				RETVAL="$?"
+				[ "$RETVAL" = 2 ] && return 2
+				[ "$RETVAL" = 1 ] && log_warning_msg " (already running)"
+			else
+				log_failure_msg " ($CONFIG_FILE not found)"
+				return 2
+			fi
+		done
+	fi
 }
 
 case "$1" in
