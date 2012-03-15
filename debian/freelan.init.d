@@ -146,31 +146,33 @@ do_stop()
 }
 
 case "$1" in
-  start)
-    do_start
-  ;;
-  stop)
-	do_stop
-	;;
-  status)
-       status_of_proc "$DAEMON" "$NAME" && exit 0 || exit $?
-       ;;
-  restart|force-reload)
-	#
-	# If the "reload" option is implemented then remove the
-	# 'force-reload' alias
-	#
-	do_stop
-	case "$?" in
-	  0|1)
+	start)
 		do_start
+		exit $?
 		;;
-	esac
-	;;
-  *)
-	echo "Usage: $SCRIPTNAME {start|stop|status|restart|force-reload}" >&2
-	exit 3
-	;;
+	stop)
+		do_stop
+		exit $?
+		;;
+	status)
+		status_of_proc "$DAEMON" "$NAME" && exit 0 || exit $?
+		;;
+	restart|force-reload)
+		#
+		# If the "reload" option is implemented then remove the
+		# 'force-reload' alias
+		#
+		do_stop
+		case "$?" in
+			0|1)
+				do_start
+				;;
+		esac
+		;;
+	*)
+		echo "Usage: $SCRIPTNAME {start|stop|status|restart|force-reload}" >&2
+		exit 3
+		;;
 esac
 
 :
