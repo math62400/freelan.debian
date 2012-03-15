@@ -85,24 +85,31 @@ do_stop_instance()
 do_start()
 {
 	if [ "$CONFIGURATIONS" = "" ]; then
-		log_warning_msg "No configuration specified. Did you edit /etc/default/$NAME ?"
+		[ "$VERBOSE" != no ] && log_warning_msg "$NAME: No configuration specified. Did you edit /etc/default/$NAME ?"
 		return 0
 	else
+		[ "$VERBOSE" != no ] && log_daemon_msg "Starting $NAME - $DESC"
+
 		for CONFIG in $CONFIGURATIONS; do
-			log_daemon_msg " $CONFIG"
+			[ "$VERBOSE" != no ] && log_progress_msg " $CONFIG"
 
 			CONFIG_FILE="$CONFIG_DIR/$CONFIG.conf"
 			if test -e "$CONFIG_FILE"; then
 				do_start_instance
 
 				RETVAL="$?"
+				[ "$RETVAL" = 2 ] && [ "$VERBOSE" != no ] && log_progress_msg " (failed)"
+				[ "$RETVAL" = 2 ] && [ "$VERBOSE" != no ] && log_end_msg 1
 				[ "$RETVAL" = 2 ] && return 2
-				[ "$RETVAL" = 1 ] && log_warning_msg " (already running)"
+				[ "$RETVAL" = 1 ] && [ "$VERBOSE" != no ] && log_progress_msg " (already running)"
 			else
-				log_failure_msg " ($CONFIG_FILE not found)"
+				[ "$VERBOSE" != no ] && log_progress_msg " ($CONFIG_FILE not found)"
+				[ "$VERBOSE" != no ] && log_end_msg 1
 				return 2
 			fi
 		done
+
+		[ "$VERBOSE" != no ] && log_end_msg 0
 	fi
 }
 
@@ -112,21 +119,26 @@ do_start()
 do_stop()
 {
 	if [ "$CONFIGURATIONS" = "" ]; then
-		log_warning_msg "No configuration specified. Did you edit /etc/default/$NAME ?"
+		[ "$VERBOSE" != no ] && log_warning_msg "$NAME: No configuration specified. Did you edit /etc/default/$NAME ?"
 		return 0
 	else
+		[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $NAME - $DESC"
+
 		for CONFIG in $CONFIGURATIONS; do
-			log_daemon_msg " $CONFIG"
+			[ "$VERBOSE" != no ] && log_progress_msg " $CONFIG"
 
 			CONFIG_FILE="$CONFIG_DIR/$CONFIG.conf"
 			if test -e "$CONFIG_FILE"; then
 				do_stop_instance
 
 				RETVAL="$?"
+				[ "$RETVAL" = 2 ] && [ "$VERBOSE" != no ] && log_progress_msg " (failed)"
+				[ "$RETVAL" = 2 ] && [ "$VERBOSE" != no ] && log_end_msg 1
 				[ "$RETVAL" = 2 ] && return 2
-				[ "$RETVAL" = 1 ] && log_warning_msg " (already running)"
+				[ "$RETVAL" = 1 ] && [ "$VERBOSE" != no ] && log_progress_msg " (not running)"
 			else
-				log_failure_msg " ($CONFIG_FILE not found)"
+				[ "$VERBOSE" != no ] && log_progress_msg " ($CONFIG_FILE not found)"
+				[ "$VERBOSE" != no ] && log_end_msg 1
 				return 2
 			fi
 		done
@@ -135,20 +147,10 @@ do_stop()
 
 case "$1" in
   start)
-    [ "$VERBOSE" != no ] && log_daemon_msg "Starting $DESC " "$NAME"
     do_start
-    case "$?" in
-		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
-		2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
-	esac
   ;;
   stop)
-	[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $DESC" "$NAME"
 	do_stop
-	case "$?" in
-		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
-		2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
-	esac
 	;;
   status)
        status_of_proc "$DAEMON" "$NAME" && exit 0 || exit $?
@@ -158,20 +160,10 @@ case "$1" in
 	# If the "reload" option is implemented then remove the
 	# 'force-reload' alias
 	#
-	log_daemon_msg "Restarting $DESC" "$NAME"
 	do_stop
 	case "$?" in
 	  0|1)
 		do_start
-		case "$?" in
-			0) log_end_msg 0 ;;
-			1) log_end_msg 1 ;; # Old process is still running
-			*) log_end_msg 1 ;; # Failed to start
-		esac
-		;;
-	  *)
-	  	# Failed to stop
-		log_end_msg 1
 		;;
 	esac
 	;;
