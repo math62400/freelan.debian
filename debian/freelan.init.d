@@ -23,6 +23,7 @@ DAEMON_ARGS=""
 PIDFILE=/var/run/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
 CONFIG_DIR=/etc/$NAME
+VERBOSE=1
 
 # Exit if the package is not installed
 [ -x $DAEMON ] || exit 0
@@ -51,6 +52,7 @@ do_start_instance()
 	start-stop-daemon --start --quiet --pidfile $PIDFILE.$CONFIG --exec $DAEMON -- \
 		$DAEMON_ARGS -c $CONFIG_FILE \
 		|| return 2
+
 	# Add code here, if necessary, that waits for the process to be ready
 	# to handle requests from services started subsequently which depend
 	# on this one.  As a last resort, sleep for some time.
@@ -88,28 +90,28 @@ do_start()
 		[ "$VERBOSE" != no ] && log_warning_msg "$NAME: No configuration specified. Did you edit /etc/default/$NAME ?"
 		return 0
 	else
-		[ "$VERBOSE" != no ] && log_daemon_msg "Starting $NAME - $DESC"
-
 		for CONFIG in $CONFIGURATIONS; do
-			[ "$VERBOSE" != no ] && log_progress_msg " $CONFIG"
+			[ "$VERBOSE" != no ] && log_daemon_msg "Starting $NAME instance - $CONFIG"
 
 			CONFIG_FILE="$CONFIG_DIR/$CONFIG.conf"
+
 			if test -e "$CONFIG_FILE"; then
 				do_start_instance
 
 				RETVAL="$?"
-				[ "$RETVAL" = 2 ] && [ "$VERBOSE" != no ] && log_progress_msg " (failed)"
+				[ "$RETVAL" = 2 ] && [ "$VERBOSE" != no ] && log_progress_msg "failed"
 				[ "$RETVAL" = 2 ] && [ "$VERBOSE" != no ] && log_end_msg 1
 				[ "$RETVAL" = 2 ] && return 2
-				[ "$RETVAL" = 1 ] && [ "$VERBOSE" != no ] && log_progress_msg " (already running)"
+
+				[ "$RETVAL" = 1 ] && [ "$VERBOSE" != no ] && log_progress_msg "already running - doing nothing"
 			else
-				[ "$VERBOSE" != no ] && log_progress_msg " ($CONFIG_FILE not found)"
+				[ "$VERBOSE" != no ] && log_progress_msg "$CONFIG_FILE not found"
 				[ "$VERBOSE" != no ] && log_end_msg 1
 				return 2
 			fi
-		done
 
-		[ "$VERBOSE" != no ] && log_end_msg 0
+			[ "$VERBOSE" != no ] && log_end_msg 0
+		done
 	fi
 }
 
@@ -125,32 +127,40 @@ do_stop()
 		[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $NAME - $DESC"
 
 		for CONFIG in $CONFIGURATIONS; do
-			[ "$VERBOSE" != no ] && log_progress_msg " $CONFIG"
+			[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $NAME instance - $CONFIG"
 
 			CONFIG_FILE="$CONFIG_DIR/$CONFIG.conf"
+
 			if test -e "$CONFIG_FILE"; then
 				do_stop_instance
 
 				RETVAL="$?"
-				[ "$RETVAL" = 2 ] && [ "$VERBOSE" != no ] && log_progress_msg " (failed)"
+				[ "$RETVAL" = 2 ] && [ "$VERBOSE" != no ] && log_progress_msg "failed"
 				[ "$RETVAL" = 2 ] && [ "$VERBOSE" != no ] && log_end_msg 1
 				[ "$RETVAL" = 2 ] && return 2
-				[ "$RETVAL" = 1 ] && [ "$VERBOSE" != no ] && log_progress_msg " (not running)"
+
+				[ "$RETVAL" = 1 ] && [ "$VERBOSE" != no ] && log_progress_msg "not running - doing nothing"
 			else
-				[ "$VERBOSE" != no ] && log_progress_msg " ($CONFIG_FILE not found)"
+				[ "$VERBOSE" != no ] && log_progress_msg "$CONFIG_FILE not found"
 				[ "$VERBOSE" != no ] && log_end_msg 1
 				return 2
 			fi
+
+			[ "$VERBOSE" != no ] && log_end_msg 0
 		done
 	fi
 }
 
 case "$1" in
 	start)
+		[ "$VERBOSE" != no ] && log_daemon_msg "Starting $NAME - $DESC"
+		[ "$VERBOSE" != no ] && log_end_msg 0
 		do_start
 		exit $?
 		;;
 	stop)
+		[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $NAME - $DESC"
+		[ "$VERBOSE" != no ] && log_end_msg 0
 		do_stop
 		exit $?
 		;;
