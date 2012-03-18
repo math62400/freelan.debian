@@ -23,7 +23,6 @@ DAEMON_ARGS=""
 PIDFILE=/var/run/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
 CONFIG_DIR=/etc/$NAME
-VERBOSE=1
 
 # Exit if the package is not installed
 [ -x $DAEMON ] || exit 0
@@ -36,6 +35,9 @@ CONFIGURATIONS=""
 
 # Load the VERBOSE setting and other rcS variables
 . /lib/init/vars.sh
+
+# We force the VERBOSE setting
+VERBOSE=1
 
 # Define LSB log_* functions.
 # Depend on lsb-base (>= 3.0-6) to ensure that this file is present.
@@ -110,6 +112,7 @@ do_start()
 				return 2
 			fi
 
+			[ "$VERBOSE" != no ] && log_progress_msg "done"
 			[ "$VERBOSE" != no ] && log_end_msg 0
 		done
 	fi
@@ -124,8 +127,6 @@ do_stop()
 		[ "$VERBOSE" != no ] && log_warning_msg "$NAME: No configuration specified. Did you edit /etc/default/$NAME ?"
 		return 0
 	else
-		[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $NAME - $DESC"
-
 		for CONFIG in $CONFIGURATIONS; do
 			[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $NAME instance - $CONFIG"
 
@@ -146,6 +147,7 @@ do_stop()
 				return 2
 			fi
 
+			[ "$VERBOSE" != no ] && log_progress_msg "done"
 			[ "$VERBOSE" != no ] && log_end_msg 0
 		done
 	fi
