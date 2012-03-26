@@ -52,7 +52,7 @@ do_start_instance()
 	start-stop-daemon --start --quiet --pidfile $PIDFILE.$CONFIG --exec $DAEMON --test > /dev/null \
 		|| return 1
 	start-stop-daemon --start --quiet --pidfile $PIDFILE.$CONFIG --exec $DAEMON -- \
-		$DAEMON_ARGS -c $CONFIG_FILE \
+		$DAEMON_ARGS -p $PIDFILE.$CONFIG -c $CONFIG_FILE \
 		|| return 2
 
 	# Add code here, if necessary, that waits for the process to be ready
