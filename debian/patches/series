@@ -3,3 +3,4 @@ add-makefile.patch
 remove-boost-datetime.patch
 remove-ssl.patch
 change-bindir.patch
+add-pid-file-support.patch
