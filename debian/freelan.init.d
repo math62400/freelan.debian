@@ -112,7 +112,6 @@ do_start()
 				return 2
 			fi
 
-			[ "$VERBOSE" != no ] && log_progress_msg "done"
 			[ "$VERBOSE" != no ] && log_end_msg 0
 		done
 	fi
@@ -147,7 +146,6 @@ do_stop()
 				return 2
 			fi
 
-			[ "$VERBOSE" != no ] && log_progress_msg "done"
 			[ "$VERBOSE" != no ] && log_end_msg 0
 		done
 	fi
