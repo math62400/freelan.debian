@@ -1,0 +1,103 @@
+--- a/src/system.cpp
++++ b/src/system.cpp
+@@ -79,7 +79,7 @@
+ #ifdef WINDOWS
+ 	void throw_system_error(LONG error)
+ 	{
+-		throw boost::system::system_error(error, boost::system::system_category());
++		throw boost::system::system_error(error, boost::system::get_system_category());
+ 	}
+ 
+ 	DWORD create_process(const TCHAR* application, TCHAR* command_line, bool enable_stdout = ENABLE_STDOUT_DEFAULT)
+@@ -172,11 +172,11 @@
+ 
+ 		if (strerror_r(error, error_str, sizeof(error_str)) != 0)
+ 		{
+-			throw boost::system::system_error(error, boost::system::system_category());
++			throw boost::system::system_error(error, boost::system::get_system_category());
+ 		}
+ 		else
+ 		{
+-			throw boost::system::system_error(error, boost::system::system_category(), error_str);
++			throw boost::system::system_error(error, boost::system::get_system_category(), error_str);
+ 		}
+ 	}
+ 
+@@ -311,7 +311,7 @@
+ 	}
+ 	else
+ 	{
+-		throw boost::system::system_error(::GetLastError(), boost::system::system_category(), "GetModuleFileName()");
++		throw boost::system::system_error(::GetLastError(), boost::system::get_system_category(), "GetModuleFileName()");
+ 	}
+ }
+ #endif
+@@ -425,7 +425,7 @@
+ 		char args[32728] = {};
+ 		size_t offset = 0;
+ 
+-		const char* file = script.c_str();
++		const char* file = script.string().c_str();
+ 
+ 		for (const char* arg = file; arg != NULL; arg = va_arg(vl, const char*))
+ 		{
+--- a/src/tools.cpp
++++ b/src/tools.cpp
+@@ -129,10 +129,10 @@
+ 		cert.write_certificate(cryptoplus::file::open(filename.string<std::basic_string<TCHAR> >(), "w"));
+ #endif
+ #else
+-		cert.write_certificate(cryptoplus::file::open(filename.string<std::basic_string<char> >(), "w"));
++		cert.write_certificate(cryptoplus::file::open(filename.string(), "w"));
+ #endif
+ 
+-		const int exit_status = execute(script, filename.c_str(), NULL);
++		const int exit_status = execute(script, filename.string().c_str(), NULL);
+ 
+ 		if (core.logger().level() <= freelan::LL_DEBUG)
+ 		{
+--- a/src/posix/daemon.cpp
++++ b/src/posix/daemon.cpp
+@@ -62,7 +62,7 @@
+ 
+ 		if (pid < 0)
+ 		{
+-			throw boost::system::system_error(errno, boost::system::system_category(), "Cannot fork the current process.");
++			throw boost::system::system_error(errno, boost::system::get_system_category(), "Cannot fork the current process.");
+ 		}
+ 
+ 		if (pid > 0)
+--- a/src/posix/locked_pid_file.cpp
++++ b/src/posix/locked_pid_file.cpp
+@@ -58,7 +58,7 @@
+ 	{
+ 		if (::flock(file_descriptor(), LOCK_EX) != 0)
+ 		{
+-			throw boost::system::system_error(errno, boost::system::system_category(), "Locking on the PID file");
++			throw boost::system::system_error(errno, boost::system::get_system_category(), "Locking on the PID file");
+ 		}
+ 	}
+ 
+--- a/src/posix/pid_file.cpp
++++ b/src/posix/pid_file.cpp
+@@ -58,17 +58,17 @@
+ {
+ 	pid_file::pid_file(const boost::filesystem::path& path) :
+ 		m_file_path(path),
+-		m_file_descriptor(::open(path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0644))
++		m_file_descriptor(::open(path.string().c_str(), O_CREAT | O_EXCL | O_WRONLY, 0644))
+ 	{
+ 		if (m_file_descriptor < 0)
+ 		{
+-			throw boost::system::system_error(errno, boost::system::system_category(), "Creating PID file");
++			throw boost::system::system_error(errno, boost::system::get_system_category(), "Creating PID file");
+ 		}
+ 	}
+ 
+ 	pid_file::~pid_file()
+ 	{
+-		::unlink(m_file_path.c_str());
++		::unlink(m_file_path.string().c_str());
+ 		::close(m_file_descriptor);
+ 	}
+ 
