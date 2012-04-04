@@ -1,0 +1,32 @@
+--- a/src/system.cpp
++++ b/src/system.cpp
+@@ -276,28 +276,7 @@
+ 
+ fs::path absolute(const fs::path& p, const fs::path& base)
+ {
+-	if (p.has_root_name())
+-	{
+-		if (p.has_root_directory())
+-		{
+-			return p;
+-		}
+-		else
+-		{
+-			return fs::path(p.root_name()) / absolute(base).root_directory() / absolute(base).relative_path() / p.relative_path();
+-		}
+-	}
+-	else
+-	{
+-		if (p.has_root_directory())
+-		{
+-			return absolute(base).root_name() / p;
+-		}
+-		else
+-		{
+-			return absolute(base) / p;
+-		}
+-	}
++	return fs::complete(p, base);
+ }
+ 
+ #ifdef WINDOWS

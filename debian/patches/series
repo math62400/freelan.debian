@@ -6,3 +6,4 @@ change-bindir.patch
 add-pid-file-support.patch
 boost1.42-filesystem-fix.patch
 boost1.42-system-error-fix.patch
+infinite-recursion-fix.patch
