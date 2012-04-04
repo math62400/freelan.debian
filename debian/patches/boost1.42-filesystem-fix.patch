@@ -1,0 +1,184 @@
+--- a/src/configuration_helper.cpp
++++ b/src/configuration_helper.cpp
+@@ -52,6 +52,7 @@
+ #include <boost/foreach.hpp>
+ 
+ #include "configuration_types.hpp"
++#include "system.hpp"
+ 
+ namespace po = boost::program_options;
+ namespace fs = boost::filesystem;
+@@ -71,7 +72,7 @@
+ 			throw std::runtime_error("No such file: " + filename.string());
+ 		}
+ 
+-		return cryptoplus::file::open(filename.native());
++		return cryptoplus::file::open(filename.string());
+ 	}
+ 
+ 	fl::security_configuration::cert_type load_certificate(const fs::path& filename)
+@@ -179,20 +180,20 @@
+ 	configuration.fscp.contact_list = vm["fscp.contact"].as<std::vector<fl::endpoint> >();
+ 
+ 	// Security options
+-	cert_type signature_certificate = load_certificate(fs::absolute(vm["security.signature_certificate_file"].as<fs::path>(), root));
+-	pkey signature_private_key = load_private_key(fs::absolute(vm["security.signature_private_key_file"].as<fs::path>(), root));
++	cert_type signature_certificate = load_certificate(absolute(vm["security.signature_certificate_file"].as<fs::path>(), root));
++	pkey signature_private_key = load_private_key(absolute(vm["security.signature_private_key_file"].as<fs::path>(), root));
+ 
+ 	cert_type encryption_certificate;
+ 	pkey encryption_private_key;
+ 
+ 	if (vm.count("security.encryption_certificate_file"))
+ 	{
+-		encryption_certificate = load_certificate(fs::absolute(vm["security.encryption_certificate_file"].as<fs::path>(), root));
++		encryption_certificate = load_certificate(absolute(vm["security.encryption_certificate_file"].as<fs::path>(), root));
+ 	}
+ 
+ 	if (vm.count("security.encryption_private_key_file"))
+ 	{
+-		encryption_private_key = load_private_key(fs::absolute(vm["security.encryption_private_key_file"].as<fs::path>(), root));
++		encryption_private_key = load_private_key(absolute(vm["security.encryption_private_key_file"].as<fs::path>(), root));
+ 	}
+ 
+ 	configuration.security.identity = fscp::identity_store(signature_certificate, signature_private_key, encryption_certificate, encryption_private_key);
+@@ -205,7 +206,7 @@
+ 
+ 	BOOST_FOREACH(const std::string& authority_certificate_file, authority_certificate_file_list)
+ 	{
+-		configuration.security.certificate_authority_list.push_back(load_trusted_certificate(fs::absolute(authority_certificate_file, root)));
++		configuration.security.certificate_authority_list.push_back(load_trusted_certificate(absolute(authority_certificate_file, root)));
+ 	}
+ 
+ 	configuration.security.certificate_revocation_validation_method = vm["security.certificate_revocation_validation_method"].as<fl::security_configuration::certificate_revocation_validation_method_type>();
+@@ -216,7 +217,7 @@
+ 
+ 	BOOST_FOREACH(const std::string& crl_file, crl_file_list)
+ 	{
+-		configuration.security.certificate_revocation_list_list.push_back(load_crl(fs::absolute(crl_file, root)));
++		configuration.security.certificate_revocation_list_list.push_back(load_crl(absolute(crl_file, root)));
+ 	}
+ 
+ 	// Tap adapter options
+@@ -238,19 +239,19 @@
+ {
+ 	fs::path tap_adapter_up_script_file = vm["tap_adapter.up_script"].as<fs::path>();
+ 
+-	return tap_adapter_up_script_file.empty() ? tap_adapter_up_script_file : fs::absolute(tap_adapter_up_script_file, root);
++	return tap_adapter_up_script_file.empty() ? tap_adapter_up_script_file : absolute(tap_adapter_up_script_file, root);
+ }
+ 
+ boost::filesystem::path get_tap_adapter_down_script(const boost::filesystem::path& root, const boost::program_options::variables_map& vm)
+ {
+ 	fs::path tap_adapter_down_script_file = vm["tap_adapter.down_script"].as<fs::path>();
+ 
+-	return tap_adapter_down_script_file.empty() ? tap_adapter_down_script_file : fs::absolute(tap_adapter_down_script_file, root);
++	return tap_adapter_down_script_file.empty() ? tap_adapter_down_script_file : absolute(tap_adapter_down_script_file, root);
+ }
+ 
+ boost::filesystem::path get_certificate_validation_script(const boost::filesystem::path& root, const boost::program_options::variables_map& vm)
+ {
+ 	fs::path certificate_validation_script_file = vm["security.certificate_validation_script"].as<fs::path>();
+ 
+-	return certificate_validation_script_file.empty() ? certificate_validation_script_file : fs::absolute(certificate_validation_script_file, root);
++	return certificate_validation_script_file.empty() ? certificate_validation_script_file : absolute(certificate_validation_script_file, root);
+ }
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -275,7 +275,7 @@
+ 
+ 	if (vm.count("pid_file"))
+ 	{
+-		configuration.pid_file = fs::absolute(vm["pid_file"].as<std::string>());
++		configuration.pid_file = absolute(vm["pid_file"].as<std::string>());
+ 	}
+ 	else
+ 	{
+@@ -283,7 +283,7 @@
+ 
+ 		if (val)
+ 		{
+-			configuration.pid_file = fs::absolute(std::string(val));
++			configuration.pid_file = absolute(std::string(val));
+ 		}
+ 	}
+ #endif
+@@ -292,7 +292,7 @@
+ 
+ 	if (vm.count("configuration_file"))
+ 	{
+-		configuration_file = fs::absolute(vm["configuration_file"].as<std::string>());
++		configuration_file = absolute(fs::path(vm["configuration_file"].as<std::string>()));
+ 	}
+ 	else
+ 	{
+@@ -300,7 +300,7 @@
+ 
+ 		if (val)
+ 		{
+-			configuration_file = fs::absolute(std::string(val));
++			configuration_file = absolute(fs::path(std::string(val)));
+ 		}
+ 	}
+ 
+@@ -333,7 +333,7 @@
+ 
+ 				po::store(po::parse_config_file(ifs, configuration_options, true), vm);
+ 
+-				configuration_file = fs::absolute(conf);
++				configuration_file = absolute(conf);
+ 
+ 				break;
+ 			}
+--- a/src/system.cpp
++++ b/src/system.cpp
+@@ -274,6 +274,32 @@
+ #endif
+ }
+ 
++fs::path absolute(const fs::path& p, const fs::path& base)
++{
++	if (p.has_root_name())
++	{
++		if (p.has_root_directory())
++		{
++			return p;
++		}
++		else
++		{
++			return fs::path(p.root_name()) / absolute(base).root_directory() / absolute(base).relative_path() / p.relative_path();
++		}
++	}
++	else
++	{
++		if (p.has_root_directory())
++		{
++			return absolute(base).root_name() / p;
++		}
++		else
++		{
++			return absolute(base) / p;
++		}
++	}
++}
++
+ #ifdef WINDOWS
+ fs::path get_module_filename()
+ {
+--- a/src/system.hpp
++++ b/src/system.hpp
+@@ -52,6 +52,14 @@
+ 
+ #include <boost/filesystem.hpp>
+ 
++/**
++ * \brief Get the absolute path for the specified path.
++ * \param p The path.
++ * \param base A base path.
++ * \return Return the absolute path.
++ */
++boost::filesystem::path absolute(const boost::filesystem::path& p, const boost::filesystem::path& base=boost::filesystem::current_path());
++
+ #ifdef WINDOWS
+ /**
+  * \brief Get the filename of the current module.
