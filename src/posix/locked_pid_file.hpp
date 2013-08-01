@@ -39,60 +39,35 @@
  */
 
 /**
- * \file daemon.cpp
+ * \file locked_pid_file.hpp
  * \author Julien KAUFFMANN <julien.kauffmann@freelan.org>
- * \brief POSIX related daemon functions.
+ * \brief A flocked PID file handling class.
  */
 
-#include "daemon.hpp"
+#ifndef LOCKED_PID_FILE_HPP
+#define LOCKED_PID_FILE_HPP
 
-#include <boost/system/system_error.hpp>
-
-#include <unistd.h>
-#include <errno.h>
-#include <syslog.h>
-
-#include "../tools.hpp"
+#include "pid_file.hpp"
 
 namespace posix
 {
-	void daemonize()
+	class locked_pid_file : public pid_file
 	{
-		pid_t pid = ::fork();
+		public:
 
-		if (pid < 0)
-		{
-			throw boost::system::system_error(errno, boost::system::system_category(), "Cannot fork the current process.");
-		}
+			/**
+			 * \brief Create a PID file.
+			 * \param path The path to the PID file to create.
+			 *
+			 * If the specified file already exists, creation fails.
+			 */
+			locked_pid_file(const boost::filesystem::path& path);
 
-		if (pid > 0)
-		{
-			exit(EXIT_SUCCESS);
-		}
-
-		::openlog("freelan", LOG_PID, LOG_DAEMON);
-
-		pid_t sid = ::setsid();
-
-		if (sid < 0)
-		{
-			::syslog(LOG_ERR, "setsid():%u:%s", errno, strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-
-		if (::chdir("/") < 0)
-		{
-			::syslog(LOG_ERR, "chdir():%u:%s", errno, strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-
-		::close(STDIN_FILENO);
-		::close(STDOUT_FILENO);
-		::close(STDERR_FILENO);
-	}
-
-	void syslog(freelan::log_level level, const std::string& msg)
-	{
-		::syslog(log_level_to_syslog_priority(level), "%s", msg.c_str());
-	}
+			/**
+			 * \brief Destroy the PID file.
+			 */
+			~locked_pid_file();
+	};
 }
+
+#endif /* LOCKED_PID_FILE_HPP */

@@ -54,8 +54,6 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/function.hpp>
-#include <boost/thread/mutex.hpp>
-#include <boost/thread/locks.hpp>
 
 #include <cryptoplus/cryptoplus.hpp>
 #include <cryptoplus/error/error_strings.hpp>
@@ -67,8 +65,10 @@
 #include "win32/service.hpp"
 #else
 #include "posix/daemon.hpp"
+#include "posix/locked_pid_file.hpp"
 #endif
 
+#include "version.hpp"
 #include "tools.hpp"
 #include "system.hpp"
 #include "configuration_helper.hpp"
@@ -76,62 +76,13 @@
 namespace fs = boost::filesystem;
 namespace fl = freelan;
 
-static boost::mutex stop_function_mutex;
-static boost::function<void ()> stop_function = 0;
-
-static void signal_handler(int code)
-{
-	switch (code)
-	{
-		case SIGTERM:
-		case SIGINT:
-		case SIGABRT:
-			{
-				boost::lock_guard<boost::mutex> lock(stop_function_mutex);
-
-				if (stop_function)
-				{
-					std::cerr << "Signal caught: stopping..." << std::endl;
-
-					stop_function();
-					stop_function = 0;
-				}
-				break;
-			}
-		default:
-			break;
-	}
-}
-
-static bool register_signal_handlers()
-{
-	if (signal(SIGTERM, signal_handler) == SIG_ERR)
-	{
-		std::cerr << "Failed to catch SIGTERM signals." << std::endl;
-		return false;
-	}
-
-	if (signal(SIGINT, signal_handler) == SIG_ERR)
-	{
-		std::cerr << "Failed to catch SIGINT signals." << std::endl;
-		return false;
-	}
-
-	if (signal(SIGABRT, signal_handler) == SIG_ERR)
-	{
-		std::cerr << "Failed to catch SIGABRT signals." << std::endl;
-		return false;
-	}
-
-	return true;
-}
-
 struct cli_configuration
 {
 	fl::configuration fl_configuration;
 	bool debug;
 #ifndef WINDOWS
 	bool foreground;
+	fs::path pid_file;
 #endif
 };
 
@@ -155,6 +106,18 @@ void do_log(freelan::log_level level, const std::string& msg)
 	std::cout << boost::posix_time::to_iso_extended_string(boost::posix_time::microsec_clock::local_time()) << " [" << log_level_to_string(level) << "] " << msg << std::endl;
 }
 
+void signal_handler(const boost::system::error_code& error, int signal_number, fl::core& core, int& exit_signal)
+{
+	if (!error)
+	{
+		do_log(fl::LL_WARNING, "Signal caught (" + boost::lexical_cast<std::string>(signal_number) + "): exiting...");
+
+		core.close();
+
+		exit_signal = signal_number;
+	}
+}
+
 bool parse_options(int argc, char** argv, cli_configuration& configuration)
 {
 	namespace po = boost::program_options;
@@ -165,14 +128,16 @@ bool parse_options(int argc, char** argv, cli_configuration& configuration)
 	po::options_description generic_options("Generic options");
 	generic_options.add_options()
 	("help,h", "Produce help message.")
+	("version,v", "Get the program version.")
 	("debug,d", "Enables debug output.")
-	("configuration_file,c", po::value<std::string>(), "The configuration file to use")
+	("configuration_file,c", po::value<std::string>(), "The configuration file to use.")
 	;
 
 	visible_options.add(generic_options);
 	all_options.add(generic_options);
 
 	po::options_description configuration_options("Configuration");
+	configuration_options.add(get_server_options());
 	configuration_options.add(get_fscp_options());
 	configuration_options.add(get_security_options());
 	configuration_options.add(get_tap_adapter_options());
@@ -195,6 +160,7 @@ bool parse_options(int argc, char** argv, cli_configuration& configuration)
 	po::options_description daemon_options("Daemon");
 	daemon_options.add_options()
 	("foreground,f", "Do not run as a daemon.")
+	("pid_file,p", po::value<std::string>(), "A pid file to use.")
 	;
 
 	visible_options.add(daemon_options);
@@ -207,6 +173,13 @@ bool parse_options(int argc, char** argv, cli_configuration& configuration)
 	if (vm.count("help"))
 	{
 		std::cout << visible_options << std::endl;
+
+		return false;
+	}
+
+	if (vm.count("version"))
+	{
+		std::cout << FREELAN_NAME << " " << FREELAN_VERSION_STRING << " " << FREELAN_DATE << std::endl;
 
 		return false;
 	}
@@ -269,6 +242,20 @@ bool parse_options(int argc, char** argv, cli_configuration& configuration)
 	}
 #else
 	configuration.foreground = (vm.count("foreground") > 0);
+
+	if (vm.count("pid_file"))
+	{
+		configuration.pid_file = fs::absolute(vm["pid_file"].as<std::string>());
+	}
+	else
+	{
+		char* val = getenv("FREELAN_PID_FILE");
+
+		if (val)
+		{
+			configuration.pid_file = fs::absolute(std::string(val));
+		}
+	}
 #endif
 
 	fs::path configuration_file;
@@ -318,6 +305,8 @@ bool parse_options(int argc, char** argv, cli_configuration& configuration)
 
 				configuration_file = fs::absolute(conf);
 
+				configuration_read = true;
+
 				break;
 			}
 		}
@@ -344,14 +333,14 @@ bool parse_options(int argc, char** argv, cli_configuration& configuration)
 
 	if (!tap_adapter_up_script.empty())
 	{
-		configuration.fl_configuration.tap_adapter.up_callback = boost::bind(&execute_tap_adapter_up_script, tap_adapter_up_script, _1);
+		configuration.fl_configuration.tap_adapter.up_callback = boost::bind(&execute_tap_adapter_up_script, tap_adapter_up_script, _1, _2);
 	}
 
 	const fs::path tap_adapter_down_script = get_tap_adapter_down_script(execution_root_directory, vm);
 
 	if (!tap_adapter_down_script.empty())
 	{
-		configuration.fl_configuration.tap_adapter.down_callback = boost::bind(&execute_tap_adapter_down_script, tap_adapter_down_script, _1);
+		configuration.fl_configuration.tap_adapter.down_callback = boost::bind(&execute_tap_adapter_down_script, tap_adapter_down_script, _1, _2);
 	}
 
 	const fs::path certificate_validation_script = get_certificate_validation_script(execution_root_directory, vm);
@@ -366,8 +355,19 @@ bool parse_options(int argc, char** argv, cli_configuration& configuration)
 	return true;
 }
 
-void run(const cli_configuration& configuration)
+void run(const cli_configuration& configuration, int& exit_signal)
 {
+#ifndef WINDOWS
+	boost::shared_ptr<posix::locked_pid_file> pid_file;
+
+	if (!configuration.pid_file.empty())
+	{
+		std::cout << "Creating PID file at: " << configuration.pid_file << std::endl;
+
+		pid_file.reset(new posix::locked_pid_file(configuration.pid_file));
+	}
+#endif
+
 	boost::function<void (freelan::log_level, const std::string&)> log_func = &do_log;
 
 #ifndef WINDOWS
@@ -377,9 +377,16 @@ void run(const cli_configuration& configuration)
 
 		log_func = &posix::syslog;
 	}
+
+	if (pid_file)
+	{
+		pid_file->write_pid();
+	}
 #endif
 
 	boost::asio::io_service io_service;
+
+	boost::asio::signal_set signals(io_service, SIGINT, SIGTERM);
 
 	fl::logger logger(log_func, configuration.debug ? fl::LL_DEBUG : fl::LL_INFORMATION);
 
@@ -387,19 +394,11 @@ void run(const cli_configuration& configuration)
 
 	core.open();
 
-	boost::unique_lock<boost::mutex> lock(stop_function_mutex);
-
-	stop_function = boost::bind(&freelan::core::close, boost::ref(core));
-
-	lock.unlock();
+	signals.async_wait(boost::bind(signal_handler, _1, _2, boost::ref(core), boost::ref(exit_signal)));
 
 	logger(fl::LL_INFORMATION) << "Execution started." << std::endl;
 
-	if (core.has_tap_adapter())
-	{
-		logger(fl::LL_INFORMATION) << "Using tap adapter: " << core.tap_adapter().name();
-	}
-	else
+	if (!core.has_tap_adapter())
 	{
 		logger(fl::LL_INFORMATION) << "Configured not to use any tap adapter.";
 	}
@@ -409,12 +408,6 @@ void run(const cli_configuration& configuration)
 	io_service.run();
 
 	logger(fl::LL_INFORMATION) << "Execution stopped." << std::endl;
-
-	lock.lock();
-
-	stop_function = 0;
-
-	lock.unlock();
 }
 
 int main(int argc, char** argv)
@@ -426,22 +419,20 @@ int main(int argc, char** argv)
 	}
 #endif
 
-	if (!register_signal_handlers())
-	{
-		return EXIT_FAILURE;
-	}
+	int exit_signal = 0;
 
 	try
 	{
 		cryptoplus::crypto_initializer crypto_initializer;
 		cryptoplus::algorithms_initializer algorithms_initializer;
 		cryptoplus::error::error_strings_initializer error_strings_initializer;
+		freelan::initializer freelan_initializer;
 
 		cli_configuration configuration;
 
 		if (parse_options(argc, argv, configuration))
 		{
-			run(configuration);
+			run(configuration, exit_signal);
 		}
 	}
 	catch (std::exception& ex)
@@ -450,6 +441,18 @@ int main(int argc, char** argv)
 
 		return EXIT_FAILURE;
 	}
+
+#ifndef WINDOWS
+	if (exit_signal != 0)
+	{
+		do_log(fl::LL_ERROR, "Execution aborted because of a signal (" + boost::lexical_cast<std::string>(exit_signal) + ").");
+
+		// We kill ourselves with the signal to ensure the process exits with the proprer state.
+		//
+		// This ensures that the calling process knows about this process being killed.
+		kill(getpid(), exit_signal);
+	}
+#endif
 
 	return EXIT_SUCCESS;
 }

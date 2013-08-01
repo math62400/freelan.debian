@@ -52,6 +52,7 @@
 #include <boost/foreach.hpp>
 
 #include "configuration_types.hpp"
+#include "version.hpp"
 
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
@@ -95,6 +96,28 @@ namespace
 	}
 }
 
+po::options_description get_server_options()
+{
+	po::options_description result("FreeLAN Server options");
+
+	result.add_options()
+	("server.enabled", po::value<bool>()->default_value(false, "no"), "Whether to enable the server mechanism.")
+	("server.host", po::value<fl::endpoint>(), "The server host.")
+	("server.https_proxy", po::value<fl::endpoint>(), "The HTTP proxy host.")
+	("server.username", po::value<std::string>(), "The username.")
+	("server.password", po::value<std::string>(), "The password. If no password is specified, it will be taken from the FREELAN_SERVER_PASSWORD environment variable.")
+	("server.network", po::value<std::string>(), "The network. If no network is specified, it will be taken from the FREELAN_SERVER_NETWORK environment variable.")
+	("server.public_endpoint", po::value<std::vector<fl::endpoint> >()->multitoken()->zero_tokens()->default_value(std::vector<fl::endpoint>(), ""), "A public endpoint to publish to others hosts.")
+	("server.user_agent", po::value<std::string>(), "The user agent. If no user agent is specified, \"" FREELAN_USER_AGENT "\" will be used.")
+	("server.protocol", po::value<fl::server_configuration::server_protocol_type>()->default_value(fl::server_configuration::SP_HTTPS), "The protocol to use to contact the server.")
+	("server.ca_info_file", po::value<fs::path>()->default_value(""), "The CA info file.")
+	("server.disable_peer_verification", po::value<bool>()->default_value(false, "no"), "Whether to disable peer verification.")
+	("server.disable_host_verification", po::value<bool>()->default_value(false, "no"), "Whether to disable host verification.")
+	;
+
+	return result;
+}
+
 po::options_description get_fscp_options()
 {
 	po::options_description result("FreeLAN Secure Channel Protocol (FSCP) options");
@@ -104,6 +127,11 @@ po::options_description get_fscp_options()
 	("fscp.listen_on", po::value<fl::endpoint>()->default_value(fl::ipv4_endpoint(boost::asio::ip::address_v4::any(), 12000)), "The endpoint to listen on.")
 	("fscp.hello_timeout", po::value<millisecond_duration>()->default_value(3000), "The default timeout for HELLO messages, in milliseconds.")
 	("fscp.contact", po::value<std::vector<fl::endpoint> >()->multitoken()->zero_tokens()->default_value(std::vector<fl::endpoint>(), ""), "The address of an host to contact.")
+	("fscp.accept_contact_requests", po::value<bool>()->default_value(true, "yes"), "Whether to accept CONTACT-REQUEST messages.")
+	("fscp.accept_contacts", po::value<bool>()->default_value(true, "yes"), "Whether to accept CONTACT messages.")
+	("fscp.dynamic_contact_file", po::value<std::vector<std::string> >()->multitoken()->zero_tokens()->default_value(std::vector<std::string>(), ""), "The certificate of an host to dynamically contact.")
+	("fscp.never_contact", po::value<std::vector<fl::ip_network_address> >()->multitoken()->zero_tokens()->default_value(std::vector<fl::ip_network_address>(), ""), "A network address to avoid when dynamically contacting hosts.")
+	("fscp.cipher_capability", po::value<std::vector<fscp::cipher_algorithm_type> >()->multitoken()->zero_tokens()->default_value(std::vector<fscp::cipher_algorithm_type>(), ""), "A cipher algorithm to allow.")
 	;
 
 	return result;
@@ -114,8 +142,8 @@ po::options_description get_security_options()
 	po::options_description result("Security options");
 
 	result.add_options()
-	("security.signature_certificate_file", po::value<fs::path>()->required(), "The certificate file to use for signing.")
-	("security.signature_private_key_file", po::value<fs::path>()->required(), "The private key file to use for signing.")
+	("security.signature_certificate_file", po::value<fs::path>(), "The certificate file to use for signing.")
+	("security.signature_private_key_file", po::value<fs::path>(), "The private key file to use for signing.")
 	("security.encryption_certificate_file", po::value<fs::path>(), "The certificate file to use for encryption.")
 	("security.encryption_private_key_file", po::value<fs::path>(), "The private key file to use for encryption.")
 	("security.certificate_validation_method", po::value<fl::security_configuration::certificate_validation_method_type>()->default_value(fl::security_configuration::CVM_DEFAULT), "The certificate validation method.")
@@ -139,6 +167,8 @@ po::options_description get_tap_adapter_options()
 
 	result.add_options()
 	("tap_adapter.enabled", po::value<bool>()->default_value(true, "yes"), "Whether to enable the tap adapter.")
+	("tap_adapter.name", po::value<std::string>(), "The name of the tap adapter to use or create.")
+	("tap_adapter.mtu", po::value<fl::mtu_type>()->default_value(fl::auto_mtu_type()), "The MTU of the tap adapter.")
 	("tap_adapter.ipv4_address_prefix_length", po::value<fl::ipv4_network_address>()->default_value(default_ipv4_network_address), "The tap adapter IPv4 address and prefix length.")
 	("tap_adapter.ipv6_address_prefix_length", po::value<fl::ipv6_network_address>()->default_value(default_ipv6_network_address), "The tap adapter IPv6 address and prefix length.")
 	("tap_adapter.arp_proxy_enabled", po::value<bool>()->default_value(false), "Whether to enable the ARP proxy.")
@@ -171,19 +201,104 @@ void setup_configuration(fl::configuration& configuration, const boost::filesyst
 	typedef fl::security_configuration::cert_type cert_type;
 	typedef cryptoplus::pkey::pkey pkey;
 
+	// Server options
+	configuration.server.enabled = vm["server.enabled"].as<bool>();
+
+	if (vm.count("server.host"))
+	{
+		configuration.server.host = vm["server.host"].as<fl::endpoint>();
+	}
+
+	if (vm.count("server.https_proxy"))
+	{
+		configuration.server.https_proxy = vm["server.https_proxy"].as<fl::endpoint>();
+	}
+
+	if (vm.count("server.username"))
+	{
+		configuration.server.username = vm["server.username"].as<std::string>();
+	}
+
+	if (vm.count("server.password"))
+	{
+		configuration.server.password = vm["server.password"].as<std::string>();
+	}
+	else
+	{
+		const char* default_password = getenv("FREELAN_SERVER_PASSWORD");
+
+		if (default_password)
+		{
+			configuration.server.password = default_password;
+		}
+	}
+
+	if (vm.count("server.network"))
+	{
+		configuration.server.network= vm["server.network"].as<std::string>();
+	}
+	else
+	{
+		const char* default_network = getenv("FREELAN_SERVER_NETWORK");
+
+		if (default_network)
+		{
+			configuration.server.network = default_network;
+		}
+	}
+
+	configuration.server.public_endpoint_list = vm["server.public_endpoint"].as<std::vector<fl::endpoint> >();
+
+	if (vm.count("server.user_agent"))
+	{
+		configuration.server.user_agent = vm["server.user_agent"].as<std::string>();
+	}
+	else
+	{
+		configuration.server.user_agent = FREELAN_USER_AGENT;
+	}
+
+	configuration.server.protocol = vm["server.protocol"].as<fl::server_configuration::server_protocol_type>();
+	configuration.server.ca_info = vm["server.ca_info_file"].as<fs::path>().empty() ? fs::path() : fs::absolute(vm["server.ca_info_file"].as<fs::path>(), root);
+
+	configuration.server.disable_peer_verification = vm["server.disable_peer_verification"].as<bool>();
+	configuration.server.disable_host_verification = vm["server.disable_host_verification"].as<bool>();
+
 	// FSCP options
 	configuration.fscp.hostname_resolution_protocol = vm["fscp.hostname_resolution_protocol"].as<fl::fscp_configuration::hostname_resolution_protocol_type>();
 	configuration.fscp.listen_on = vm["fscp.listen_on"].as<fl::endpoint>();
 	configuration.fscp.hello_timeout = vm["fscp.hello_timeout"].as<millisecond_duration>();
 
 	configuration.fscp.contact_list = vm["fscp.contact"].as<std::vector<fl::endpoint> >();
+	configuration.fscp.accept_contact_requests = vm["fscp.accept_contact_requests"].as<bool>();
+	configuration.fscp.accept_contacts = vm["fscp.accept_contacts"].as<bool>();
+	const std::vector<std::string> dynamic_contact_file_list = vm["fscp.dynamic_contact_file"].as<std::vector<std::string> >();
+
+	configuration.fscp.dynamic_contact_list.clear();
+
+	BOOST_FOREACH(const fs::path& dynamic_contact_file, dynamic_contact_file_list)
+	{
+		configuration.fscp.dynamic_contact_list.push_back(load_certificate(fs::absolute(dynamic_contact_file, root)));
+	}
+
+	configuration.fscp.never_contact_list = vm["fscp.never_contact"].as<std::vector<fl::ip_network_address> >();
+	configuration.fscp.cipher_capabilities = vm["fscp.cipher_capability"].as<std::vector<fscp::cipher_algorithm_type> >();
 
 	// Security options
-	cert_type signature_certificate = load_certificate(fs::absolute(vm["security.signature_certificate_file"].as<fs::path>(), root));
-	pkey signature_private_key = load_private_key(fs::absolute(vm["security.signature_private_key_file"].as<fs::path>(), root));
-
+	cert_type signature_certificate;
+	pkey signature_private_key;
 	cert_type encryption_certificate;
 	pkey encryption_private_key;
+
+	if (vm.count("security.signature_certificate_file"))
+	{
+		signature_certificate = load_certificate(fs::absolute(vm["security.signature_certificate_file"].as<fs::path>(), root));
+	}
+
+	if (vm.count("security.signature_private_key_file"))
+	{
+		signature_private_key = load_private_key(fs::absolute(vm["security.signature_private_key_file"].as<fs::path>(), root));
+	}
 
 	if (vm.count("security.encryption_certificate_file"))
 	{
@@ -195,7 +310,10 @@ void setup_configuration(fl::configuration& configuration, const boost::filesyst
 		encryption_private_key = load_private_key(fs::absolute(vm["security.encryption_private_key_file"].as<fs::path>(), root));
 	}
 
-	configuration.security.identity = fscp::identity_store(signature_certificate, signature_private_key, encryption_certificate, encryption_private_key);
+	if (signature_certificate && signature_private_key)
+	{
+		configuration.security.identity = fscp::identity_store(signature_certificate, signature_private_key, encryption_certificate, encryption_private_key);
+	}
 
 	configuration.security.certificate_validation_method = vm["security.certificate_validation_method"].as<fl::security_configuration::certificate_validation_method_type>();
 
@@ -221,6 +339,13 @@ void setup_configuration(fl::configuration& configuration, const boost::filesyst
 
 	// Tap adapter options
 	configuration.tap_adapter.enabled = vm["tap_adapter.enabled"].as<bool>();
+
+	if (vm.count("tap_adapter.name"))
+	{
+		configuration.tap_adapter.name = vm["tap_adapter.name"].as<std::string>();
+	}
+
+	configuration.tap_adapter.mtu = vm["tap_adapter.mtu"].as<fl::mtu_type>();
 	configuration.tap_adapter.ipv4_address_prefix_length = vm["tap_adapter.ipv4_address_prefix_length"].as<fl::ipv4_network_address>();
 	configuration.tap_adapter.ipv6_address_prefix_length = vm["tap_adapter.ipv6_address_prefix_length"].as<fl::ipv6_network_address>();
 	configuration.tap_adapter.arp_proxy_enabled = vm["tap_adapter.arp_proxy_enabled"].as<bool>();
