@@ -39,60 +39,31 @@
  */
 
 /**
- * \file daemon.cpp
+ * \file version.hpp
  * \author Julien KAUFFMANN <julien.kauffmann@freelan.org>
- * \brief POSIX related daemon functions.
+ * \brief Version related functions.
  */
 
-#include "daemon.hpp"
+#ifndef VERSION_HPP
+#define VERSION_HPP
 
-#include <boost/system/system_error.hpp>
+#define STRINGIFY(x) #x
+#define TO_STRING(x) STRINGIFY(x)
 
-#include <unistd.h>
-#include <errno.h>
-#include <syslog.h>
+#define FREELAN_NAME "freelan"
 
-#include "../tools.hpp"
+#if defined(FREELAN_VERSION_MAJOR) && defined(FREELAN_VERSION_MINOR)
+#define FREELAN_VERSION (FREELAN_VERSION_MAJOR * 0x01000000L + FREELAN_VERSION_MINOR * 0x00010000L)
+#define FREELAN_VERSION_STRING TO_STRING(FREELAN_VERSION_MAJOR) "." TO_STRING(FREELAN_VERSION_MINOR)
+#else
+#define FREELAN_VERSION 0L
+#define FREELAN_VERSION_STRING "development"
+#endif
 
-namespace posix
-{
-	void daemonize()
-	{
-		pid_t pid = ::fork();
+#ifndef FREELAN_DATE
+#define FREELAN_DATE "unspecified date"
+#endif /* FREELAN_DATE */
 
-		if (pid < 0)
-		{
-			throw boost::system::system_error(errno, boost::system::system_category(), "Cannot fork the current process.");
-		}
+#define FREELAN_USER_AGENT FREELAN_NAME "/" FREELAN_VERSION_STRING
 
-		if (pid > 0)
-		{
-			exit(EXIT_SUCCESS);
-		}
-
-		::openlog("freelan", LOG_PID, LOG_DAEMON);
-
-		pid_t sid = ::setsid();
-
-		if (sid < 0)
-		{
-			::syslog(LOG_ERR, "setsid():%u:%s", errno, strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-
-		if (::chdir("/") < 0)
-		{
-			::syslog(LOG_ERR, "chdir():%u:%s", errno, strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-
-		::close(STDIN_FILENO);
-		::close(STDOUT_FILENO);
-		::close(STDERR_FILENO);
-	}
-
-	void syslog(freelan::log_level level, const std::string& msg)
-	{
-		::syslog(log_level_to_syslog_priority(level), "%s", msg.c_str());
-	}
-}
+#endif /* VERSION_HPP */

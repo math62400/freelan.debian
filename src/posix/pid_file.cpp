@@ -39,60 +39,47 @@
  */
 
 /**
- * \file daemon.cpp
+ * \file pid_file.cpp
  * \author Julien KAUFFMANN <julien.kauffmann@freelan.org>
- * \brief POSIX related daemon functions.
+ * \brief A PID file handling class.
  */
 
-#include "daemon.hpp"
+#include "pid_file.hpp"
 
 #include <boost/system/system_error.hpp>
+#include <boost/lexical_cast.hpp>
 
-#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <errno.h>
-#include <syslog.h>
-
-#include "../tools.hpp"
 
 namespace posix
 {
-	void daemonize()
+	pid_file::pid_file(const boost::filesystem::path& path) :
+		m_file_path(path),
+		m_file_descriptor(::open(path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0644))
 	{
-		pid_t pid = ::fork();
-
-		if (pid < 0)
+		if (m_file_descriptor < 0)
 		{
-			throw boost::system::system_error(errno, boost::system::system_category(), "Cannot fork the current process.");
+			throw boost::system::system_error(errno, boost::system::system_category(), "Creating PID file");
 		}
-
-		if (pid > 0)
-		{
-			exit(EXIT_SUCCESS);
-		}
-
-		::openlog("freelan", LOG_PID, LOG_DAEMON);
-
-		pid_t sid = ::setsid();
-
-		if (sid < 0)
-		{
-			::syslog(LOG_ERR, "setsid():%u:%s", errno, strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-
-		if (::chdir("/") < 0)
-		{
-			::syslog(LOG_ERR, "chdir():%u:%s", errno, strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-
-		::close(STDIN_FILENO);
-		::close(STDOUT_FILENO);
-		::close(STDERR_FILENO);
 	}
 
-	void syslog(freelan::log_level level, const std::string& msg)
+	pid_file::~pid_file()
 	{
-		::syslog(log_level_to_syslog_priority(level), "%s", msg.c_str());
+		::unlink(m_file_path.c_str());
+		::close(m_file_descriptor);
+	}
+
+	void pid_file::write_pid() const
+	{
+		const std::string pid = boost::lexical_cast<std::string>(getpid()) + '\n';
+
+		if (::write(m_file_descriptor, pid.c_str(), pid.size()) < 0)
+		{
+			throw boost::system::system_error(errno, boost::system::system_category(), "Writing PID file");
+		}
 	}
 }
+
