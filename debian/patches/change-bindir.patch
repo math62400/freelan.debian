@@ -1,12 +1,13 @@
-Changed 'bin' to 'sbin' for destination directory.
---- a/SConstruct
-+++ b/SConstruct
-@@ -15,6 +15,8 @@
+Index: freelan.debian/SConstruct
+===================================================================
+--- freelan.debian.orig/SConstruct	2013-08-02 16:14:44.000000000 +0200
++++ freelan.debian/SConstruct	2013-08-02 16:16:40.000000000 +0200
+@@ -6,6 +6,8 @@
  
- env = Environment(ENV = os.environ.copy(), ARGUMENTS = ARGUMENTS)
+ env = Environment(ENV=os.environ.copy(), ARGUMENTS=ARGUMENTS)
  
 +env.bindir = 'sbin'
 +
- if sys.platform.startswith('win32'):
-     libraries.append('freelan_static')
-     libraries.append('asiotap_static')
+ targets = SConscript('SConscript', variant_dir=env.get_variant_dir(Dir('.')), exports='env')
+ 
+ for name, target in targets.items():
