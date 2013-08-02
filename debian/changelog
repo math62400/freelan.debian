@@ -1,3 +1,13 @@
+freelan (1.1-1) unstable; urgency=low
+
+  * Added support for dynamic contacts
+  * Added support for freelan server
+  * Performance fixes
+  * Better logging
+  * More configuration options
+
+ -- Julien Kauffmann <julien.kauffmann@freelan.org>  Fri, 02 Aug 2013 16:20:42 +0200
+
 freelan (1.0-1) unstable; urgency=low
 
   * Initial release
