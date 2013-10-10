@@ -1,3 +1,9 @@
+freelan (1.1-1~bpo70+1) wheezy-backports; urgency=low
+
+  * Rebuild for wheezy-backports.
+
+ -- Julien Kauffmann <julien.kauffmann@freelan.org>  Thu, 10 Oct 2013 19:32:56 +0200
+
 freelan (1.1-1) unstable; urgency=low
 
   * Added support for dynamic contacts
